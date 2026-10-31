@@ -1,0 +1,99 @@
+# ==============================================================================
+# HarvestEngine Docker Compose (Local Development & Containerized Deployment)
+# Stack: PostgreSQL 16 + Redis 7 + FastAPI Backend + React Frontend
+# ==============================================================================
+
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: harvestengine_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: harvest_user
+      POSTGRES_PASSWORD: harvest_password
+      POSTGRES_DB: harvestengine
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U harvest_user -d harvestengine"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - harvest_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: harvestengine_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - harvest_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: harvestengine_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://harvest_user:harvest_password@db:5432/harvestengine
+      SYNC_DATABASE_URL: postgresql+psycopg2://harvest_user:harvest_password@db:5432/harvestengine
+      REDIS_URL: redis://redis:6379/0
+      SECURE: "false"
+      ALLOWED_ORIGIN: "http://localhost:3000,http://localhost:5173"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - harvest_network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: harvestengine_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./src:/app/src
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    networks:
+      - harvest_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  harvest_network:
+    driver: bridge

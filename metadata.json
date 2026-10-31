@@ -1,0 +1,6 @@
+{
+  "name": "HarvestEngine",
+  "description": "Smart Decisions for Sustainable Farming: Weather, heat alerts, flood-risk estimates, and irrigation advice for Indian farmers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
